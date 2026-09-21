@@ -1,128 +1,116 @@
-import "./styles.css";
+import { useState } from "react";
+import { StoreProvider, useStore } from "./store";
+import MembersPage from "./components/MembersPage";
+import NodesPage from "./components/NodesPage";
+import TasksPage from "./components/TasksPage";
+import ArchivePage from "./components/ArchivePage";
+import { MOISTURE_LIMIT } from "./domain/constants";
 
-const project = {
-  "sourceNo": 8,
-  "id": "hxyfront-62013",
-  "port": 62013,
-  "title": "木结构榫卯构件测绘",
-  "domain": "古建木结构",
-  "prompt": "开发一个古建筑木结构榫卯构件测绘前端项目，测绘人员可以录入建筑名称、构件编号、木材种类、榫卯类型、截面尺寸、病害位置、变形情况和修缮建议。页面需要有构件清单、榫卯类型筛选、尺寸记录表、病害标记图和单栋建筑的构件关系视图。",
-  "palette": [
-    "#854d0e",
-    "#475569",
-    "#0f766e"
-  ],
-  "metrics": [
-    "构件数量",
-    "病害点",
-    "榫卯类型",
-    "待修缮"
-  ],
-  "filters": [
-    "燕尾榫",
-    "透榫",
-    "半榫",
-    "箍头榫"
-  ],
-  "fields": [
-    "建筑名称",
-    "构件编号",
-    "木材种类",
-    "榫卯类型",
-    "截面尺寸",
-    "修缮建议"
-  ],
-  "records": [
-    [
-      "梁架A-03",
-      "透榫",
-      "截面180x240mm",
-      "端部开裂"
-    ],
-    [
-      "柱网C-12",
-      "楠木",
-      "柱脚糟朽",
-      "建议局部墩接"
-    ],
-    [
-      "斗拱D-07",
-      "半榫",
-      "轻微变形",
-      "继续监测"
-    ]
-  ]
-};
+const USERS = ["王测绘", "李复核", "张工长"];
 
-function App() {
+type Tab = "members" | "nodes" | "tasks" | "archive";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "members", label: "构件建档与复核" },
+  { key: "nodes", label: "节点与关系图" },
+  { key: "tasks", label: "修缮待办" },
+  { key: "archive", label: "留档审计" },
+];
+
+function Shell() {
+  const { state, derived, setUser, resetAll } = useStore();
+  const [tab, setTab] = useState<Tab>("members");
+  const s = derived.stats;
+
   return (
     <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
+      <header className="topbar">
+        <div className="brand">
+          <h1>木构榫卯测绘复核台</h1>
+          <p>按建筑 / 轴线 / 构件编号建档 · 硬性校验不通过一律待复核 · 换人实测复核</p>
+        </div>
+        <div className="userbox">
+          当前操作人
+          <select value={state.user} onChange={(e) => setUser(e.target.value)}>
+            {USERS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              if (confirm("恢复演示数据？当前本地修改将被清空。")) resetAll();
+            }}
+          >
+            重置演示数据
+          </button>
+        </div>
+      </header>
+
+      <div className="rules">
+        <b>硬性红线：</b>
+        编号重复、截面尺寸非正、含水率超过 {MOISTURE_LIMIT}%、损伤贯穿截面 ——
+        命中任一条只能进入<b>待复核</b>，不生成关系边与修缮任务；复核须由
+        <b>非建档人</b>填写实测值。节点两端榫型 / 截面 / 朝向不符即<b>冻结</b>该节点及
+        <b>下游修缮任务</b>，旧版留档。上游构件任何改录，节点、任务、统计立即重算，清单 /
+        关系图 / 待办 / 刷新后状态保持一致。
+      </div>
 
       <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[28, 6, 14, 91][index] ?? 10}</strong>
-          </article>
+        <article className="metric accent">
+          <small>构件（生效）</small>
+          <strong>
+            {s.activeCount}
+            <small style={{ fontWeight: 400 }}> / {s.memberCount}</small>
+          </strong>
+        </article>
+        <article className="metric warn">
+          <small>待复核构件</small>
+          <strong>{s.pendingCount}</strong>
+        </article>
+        <article className="metric accent">
+          <small>节点（相符 / 冻结 / 阻断）</small>
+          <strong>
+            {s.normalCount}
+            <small style={{ fontWeight: 400, color: "var(--danger)" }}> / {s.frozenCount}</small>
+            <small style={{ fontWeight: 400 }}> / {s.blockedCount}</small>
+          </strong>
+        </article>
+        <article className="metric">
+          <small>修缮任务（待办）</small>
+          <strong>{s.taskOpen}</strong>
+        </article>
+        <article className="metric danger">
+          <small>冻结任务</small>
+          <strong>{s.taskFrozen}</strong>
+        </article>
+        <article className="metric">
+          <small>平均含水率（生效件）</small>
+          <strong>{s.avgMoisture === null ? "—" : `${s.avgMoisture}%`}</strong>
+        </article>
+      </section>
+
+      <nav className="tabs">
+        {TABS.map((t) => (
+          <button key={t.key} className={tab === t.key ? "active" : ""} onClick={() => setTab(t.key)}>
+            {t.label}
+          </button>
         ))}
-      </section>
+      </nav>
 
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}分类</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存记录</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
-          <div>
-            <p>近期记录</p>
-            <h2>工作台摘要</h2>
-          </div>
-          <button>导出CSV</button>
-        </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      {tab === "members" && <MembersPage />}
+      {tab === "nodes" && <NodesPage />}
+      {tab === "tasks" && <TasksPage />}
+      {tab === "archive" && <ArchivePage />}
     </main>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <StoreProvider>
+      <Shell />
+    </StoreProvider>
+  );
+}
