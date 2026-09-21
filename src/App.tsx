@@ -1,128 +1,110 @@
-import "./styles.css";
+import { useState } from "react";
+import { StoreProvider, useStore } from "./store";
+import type { ViewKey } from "./types";
+import { Dashboard } from "./views/Dashboard";
+import { MemberList } from "./views/MemberList";
+import { Dimensions } from "./views/Dimensions";
+import { Disease } from "./views/Disease";
+import { Joints } from "./views/Joints";
+import { ReviewQueue } from "./views/ReviewQueue";
+import { Todo } from "./views/Todo";
+import { Archive } from "./views/Archive";
 
-const project = {
-  "sourceNo": 8,
-  "id": "hxyfront-62013",
-  "port": 62013,
-  "title": "木结构榫卯构件测绘",
-  "domain": "古建木结构",
-  "prompt": "开发一个古建筑木结构榫卯构件测绘前端项目，测绘人员可以录入建筑名称、构件编号、木材种类、榫卯类型、截面尺寸、病害位置、变形情况和修缮建议。页面需要有构件清单、榫卯类型筛选、尺寸记录表、病害标记图和单栋建筑的构件关系视图。",
-  "palette": [
-    "#854d0e",
-    "#475569",
-    "#0f766e"
-  ],
-  "metrics": [
-    "构件数量",
-    "病害点",
-    "榫卯类型",
-    "待修缮"
-  ],
-  "filters": [
-    "燕尾榫",
-    "透榫",
-    "半榫",
-    "箍头榫"
-  ],
-  "fields": [
-    "建筑名称",
-    "构件编号",
-    "木材种类",
-    "榫卯类型",
-    "截面尺寸",
-    "修缮建议"
-  ],
-  "records": [
-    [
-      "梁架A-03",
-      "透榫",
-      "截面180x240mm",
-      "端部开裂"
-    ],
-    [
-      "柱网C-12",
-      "楠木",
-      "柱脚糟朽",
-      "建议局部墩接"
-    ],
-    [
-      "斗拱D-07",
-      "半榫",
-      "轻微变形",
-      "继续监测"
-    ]
-  ]
-};
+const NAV: { key: ViewKey; label: string; icon: string }[] = [
+  { key: "dashboard", label: "复核总览", icon: "▦" },
+  { key: "members", label: "构件清单", icon: "☷" },
+  { key: "dimensions", label: "尺寸记录表", icon: "📏" },
+  { key: "disease", label: "病害标记图", icon: "✹" },
+  { key: "joints", label: "关系视图", icon: "⫸" },
+  { key: "review", label: "待复核", icon: "⚑" },
+  { key: "todo", label: "修缮待办", icon: "🔨" },
+  { key: "archive", label: "旧版留档", icon: "❏" },
+];
 
-function App() {
+function Shell() {
+  const [view, setView] = useState<ViewKey>("dashboard");
+  const { derived, resetAll } = useStore();
+  const s = derived.stats;
+
   return (
-    <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
-
-      <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[28, 6, 14, 91][index] ?? 10}</strong>
-          </article>
-        ))}
-      </section>
-
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}分类</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存记录</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">榫</div>
           <div>
-            <p>近期记录</p>
-            <h2>工作台摘要</h2>
+            <h1>木构榫卯</h1>
+            <p>测绘复核台</p>
           </div>
-          <button>导出CSV</button>
         </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
+        <nav>
+          {NAV.map((n) => (
+            <button
+              key={n.key}
+              className={view === n.key ? "nav-on" : ""}
+              onClick={() => setView(n.key)}
+            >
+              <span className="nav-icon">{n.icon}</span>
+              {n.label}
+              {n.key === "review" && s.pending > 0 && (
+                <em className="nav-dot">{s.pending}</em>
+              )}
+              {n.key === "joints" && s.jointsFrozen > 0 && (
+                <em className="nav-dot dot-bad">{s.jointsFrozen}</em>
+              )}
+              {n.key === "todo" && s.tasksFrozen > 0 && (
+                <em className="nav-dot dot-warn">{s.tasksFrozen}</em>
+              )}
+            </button>
           ))}
+        </nav>
+        <div className="sidebar-foot">
+          <button
+            onClick={() => {
+              if (confirm("清空全部本地数据并恢复示例？")) resetAll();
+            }}
+          >
+            重置示例数据
+          </button>
+          <p>数据保存在本机浏览器，刷新后状态一致</p>
         </div>
-      </section>
-    </main>
+      </aside>
+
+      <main className="content">
+        <header className="topbar">
+          <div>
+            <h2>{NAV.find((n) => n.key === view)?.label}</h2>
+            <p>
+              {s.buildings} 栋建筑 · {s.members} 个构件 · {s.qualified} 合格 /{" "}
+              <b className={s.pending ? "text-bad" : ""}>{s.pending} 待复核</b>{" "}
+              · {s.jointsOk} 节点吻合 / {s.jointsFrozen} 冻结 ·{" "}
+              {s.tasksActive + s.tasksFrozen} 项修缮任务
+            </p>
+          </div>
+          <div className="topbar-badges">
+            <span className="top-chip">
+              平均含水率 {s.avgMoisture.toFixed(1)}%
+            </span>
+          </div>
+        </header>
+        <div className="view-body">
+          {view === "dashboard" && <Dashboard go={setView} />}
+          {view === "members" && <MemberList go={setView} />}
+          {view === "dimensions" && <Dimensions />}
+          {view === "disease" && <Disease />}
+          {view === "joints" && <Joints />}
+          {view === "review" && <ReviewQueue />}
+          {view === "todo" && <Todo />}
+          {view === "archive" && <Archive />}
+        </div>
+      </main>
+    </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <StoreProvider>
+      <Shell />
+    </StoreProvider>
+  );
+}
